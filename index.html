@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1a0f1e">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Entre Nosotros">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <title>Entre Nosotros</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -111,6 +117,21 @@
     padding:12px 20px; border-radius:999px; font-size:14px; display:none;
     box-shadow:0 8px 30px rgba(0,0,0,.5); animation:fade .2s ease;
   }
+  /* ===== Novedades y notificaciones (2026-10-19) ===== */
+  nav.bottom button{position:relative;}
+  .tbadge{
+    position:absolute; top:2px; right:4px; min-width:18px; height:18px; padding:0 5px;
+    border-radius:999px; background:var(--danger); color:#fff; font-size:11px; font-weight:800;
+    display:none; align-items:center; justify-content:center; line-height:1;
+    box-shadow:0 2px 8px rgba(0,0,0,.45);
+  }
+  .tbadge.on{display:flex;}
+  #news-banner{border:1px solid var(--rose); background:linear-gradient(160deg,#4a2135,var(--card));}
+  .pill.nuevo{background:rgba(255,123,123,.28); color:#ffd9d9; font-weight:700;}
+  .note{
+    background:rgba(232,184,109,.10); border:1px solid rgba(232,184,109,.45); color:#f5e3c2;
+    border-radius:12px; padding:10px 14px; font-size:13px; margin-bottom:12px;
+  }
 </style>
 </head>
 <body>
@@ -139,6 +160,14 @@
   <main class="wrap">
     <!-- INICIO -->
     <section class="view active" data-view="inicio">
+      <div class="card hidden" id="news-banner">
+        <h3>💌 Novedades</h3>
+        <div id="news-list"></div>
+        <div class="row" style="margin-top:10px;">
+          <button class="btn small grow" id="news-go">Ver novedades</button>
+          <button class="btn small ghost" id="news-seen">Marcar como visto</button>
+        </div>
+      </div>
       <div class="card center">
         <h3 id="home-greet">Hola</h3>
         <div class="big-number" id="count-num">–</div>
@@ -280,6 +309,14 @@
         <button class="btn" id="settings-save">Guardar cambios</button>
       </div>
       <div class="card">
+        <h3>Notificaciones</h3>
+        <p class="muted" style="font-size:13px; margin-bottom:10px;">Actívalas en este teléfono para enterarte al instante cuando tu persona agregue algo — una carta, un check-in, un latido — aunque la app esté cerrada.</p>
+        <div id="push-ios-note" class="note hidden">🍎 <strong>En iPhone:</strong> primero agrega esta página a tu pantalla de inicio (botón <strong>Compartir</strong> → <strong>«Añadir a pantalla de inicio»</strong>) y ábrela desde ahí. Solo así iOS permite las notificaciones de páginas web.</div>
+        <div id="push-status" class="muted" style="font-size:13px; margin-bottom:10px;">Revisando…</div>
+        <button class="btn" id="push-btn">Activar notificaciones 🔔</button>
+        <button class="btn ghost hidden" id="push-off-btn" style="margin-top:8px;">Desactivar en este teléfono</button>
+      </div>
+      <div class="card">
         <h3>Quién soy en este teléfono</h3>
         <select id="me-select"><option value="">Elige</option></select>
         <p class="muted" style="font-size:12px; margin-top:8px;">Se usa para firmar tus check-ins, latidos y cartas.</p>
@@ -290,12 +327,12 @@
   <nav class="bottom">
     <div class="tabs">
       <button data-tab="inicio" class="on"><span class="ico">🏠</span>Inicio</button>
-      <button data-tab="rituales"><span class="ico">💌</span>Rituales</button>
-      <button data-tab="latidos"><span class="ico">💓</span>Latidos</button>
-      <button data-tab="cartas"><span class="ico">✉️</span>Cartas</button>
-      <button data-tab="ver"><span class="ico">🍿</span>Ver</button>
-      <button data-tab="juegos"><span class="ico">🎲</span>Juegos</button>
-      <button data-tab="futuro"><span class="ico">✨</span>Futuro</button>
+      <button data-tab="rituales"><span class="ico">💌</span>Rituales<span class="tbadge" data-badge="rituales"></span></button>
+      <button data-tab="latidos"><span class="ico">💓</span>Latidos<span class="tbadge" data-badge="latidos"></span></button>
+      <button data-tab="cartas"><span class="ico">✉️</span>Cartas<span class="tbadge" data-badge="cartas"></span></button>
+      <button data-tab="ver"><span class="ico">🍿</span>Ver<span class="tbadge" data-badge="ver"></span></button>
+      <button data-tab="juegos"><span class="ico">🎲</span>Juegos<span class="tbadge" data-badge="juegos"></span></button>
+      <button data-tab="futuro"><span class="ico">✨</span>Futuro<span class="tbadge" data-badge="futuro"></span></button>
       <button data-tab="ajustes"><span class="ico">⚙️</span>Ajustes</button>
     </div>
   </nav>
@@ -359,8 +396,10 @@ async function showApp(){
   await loadSettings();
   fillWho(["checkin-who","letter-to","me-select"]);
   if(ME && partnerNames().includes(ME)){ $("me-select").value = ME; $("checkin-who").value = ME; }
+  await cargarVisto();
   startClocks(); renderHome(); loadCheckins(); loadSignals(); loadLetters();
-  loadWatch(); loadQuiz(); loadFuture(); subscribeRealtime();
+  loadWatch(); loadQuiz(); loadFuture(); subscribeRealtime(); subscribeNovedades();
+  registrarSW(); initPushUI(); actualizarNovedades();
 }
 $("login-btn").onclick = async ()=>{
   const err = $("login-err"); err.classList.add("hidden");
@@ -381,6 +420,11 @@ document.querySelectorAll("nav.bottom button").forEach(b=>{
     b.classList.add("on");
     document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active", v.dataset.view===b.dataset.tab));
     window.scrollTo({top:0});
+    const tab = b.dataset.tab;
+    if(SECCIONES.some(s=>s.seccion===tab)){
+      // Al abrir una sección, pasado un instante se marca como vista.
+      setTimeout(()=>{ marcarVisto(tab); recargarSeccion(tab); }, 900);
+    }
   };
 });
 
@@ -497,13 +541,14 @@ $("checkin-send").onclick = async ()=>{
   if(error){ toast("Error: "+error.message); return; }
   $("checkin-answer").value = "";
   toast("Check-in enviado 💌"); loadCheckins();
+  avisarPareja("💌 Nuevo check-in", who + " compartió su ritual de hoy");
 };
 async function loadCheckins(){
   $("daily-q").textContent = "“" + dailyQuestion() + "”";
   const { data } = await sb.from("checkins").select("*").eq("day", todayStr()).order("created_at",{ascending:false}).limit(20);
   if(!data || !data.length){ $("checkin-list").innerHTML = '<p class="muted">Aún no hay check-ins hoy. ¡Sé el primero!</p>'; return; }
   $("checkin-list").innerHTML = data.map(c=>`
-    <div class="item"><strong>${esc(c.partner)}</strong> <span class="pill">${esc(c.mood||"")}</span>
+    <div class="item"><strong>${esc(c.partner)}</strong> <span class="pill">${esc(c.mood||"")}</span>${pillNuevo("rituales",c,x=>x.partner)}
       <div style="margin-top:6px; font-style:italic; color:var(--muted); font-size:13px;">${esc(c.question)}</div>
       <div style="margin-top:4px;">${esc(c.answer)}</div>
       <div class="meta">${fmtDateTime(c.created_at)}</div></div>`).join("");
@@ -521,6 +566,7 @@ $("signal-btn").onclick = async ()=>{
   const { error } = await sb.from("signals").insert({ from_partner: who });
   if(error){ toast("Error: "+error.message); return; }
   toast("Latido enviado 💓"); loadSignals();
+  avisarPareja("💓 Latido", who + " está pensando en ti");
 };
 async function loadSignals(){
   const { data } = await sb.from("signals").select("*").order("created_at",{ascending:false}).limit(10);
@@ -528,7 +574,7 @@ async function loadSignals(){
   if(data && data.length){
     $("signal-count").textContent = `Hoy se han enviado ${data.filter(s=>s.created_at.slice(0,10)===todayStr()).length} latidos`;
     $("signal-list").innerHTML = data.map(s=>`
-      <div class="item">💓 <strong>${esc(s.from_partner)}</strong> está pensando en ti
+      <div class="item">💓 <strong>${esc(s.from_partner)}</strong> está pensando en ti${pillNuevo("latidos",s,x=>x.from_partner)}
       <div class="meta">${fmtDateTime(s.created_at)}</div></div>`).join("");
   }
 }
@@ -560,6 +606,7 @@ $("letter-send").onclick = async ()=>{
   if(error){ toast("Error: "+error.message); return; }
   $("letter-title").value = ""; $("letter-body").value = ""; $("letter-unlock").value = "";
   toast("Carta guardada 💌"); loadLetters();
+  avisarPareja("💌 Carta sorpresa", "Te llegó una carta nueva para abrir");
 };
 async function loadLetters(){
   const me = ME || "";
@@ -569,11 +616,11 @@ async function loadLetters(){
     const mine = me && l.to_partner === me;
     const opened = !!l.opened_at;
     if(mine && !opened){
-      return `<div class="item locked"><strong>✉️ ${esc(l.title)}</strong>
+      return `<div class="item locked"><strong>✉️ ${esc(l.title)}</strong>${pillNuevo("cartas",l,x=>x.from_partner)}
         <div class="meta">De ${esc(l.from_partner)} · ${esc(l.unlock_label)}</div>
         <button class="btn small" style="margin-top:8px;" onclick="openLetter(${l.id})">Abrir carta</button></div>`;
     }
-    return `<div class="item"><strong>${opened?"💌":"✉️"} ${esc(l.title)}</strong>
+    return `<div class="item"><strong>${opened?"💌":"✉️"} ${esc(l.title)}</strong>${pillNuevo("cartas",l,x=>x.from_partner)}
       <div class="meta">De ${esc(l.from_partner)} para ${esc(l.to_partner)} · ${fmtDateTime(l.created_at)}</div>
       ${opened?`<div style="margin-top:8px; white-space:pre-wrap;">${esc(l.body)}</div>`:`<div class="meta" style="margin-top:6px;">${esc(l.unlock_label)}${mine?"":" · aún cerrada"}</div>`}</div>`;
   }).join("");
@@ -593,13 +640,14 @@ $("watch-add").onclick = async ()=>{
   const { error } = await sb.from("watch_list").insert({ title, kind: $("watch-kind").value, added_by: ME || null });
   if(error){ toast("Error: "+error.message); return; }
   $("watch-title").value = ""; toast("Agregado 🍿"); loadWatch();
+  avisarPareja("🍿 Para ver juntos", (ME || "Tu persona") + " agregó algo a la lista");
 };
 async function loadWatch(){
   const { data } = await sb.from("watch_list").select("*").order("created_at",{ascending:false}).limit(50);
   if(!data || !data.length){ $("watch-list").innerHTML = '<p class="muted">Lista vacía. Agreguen su primera película.</p>'; return; }
   $("watch-list").innerHTML = data.map(w=>`
     <div class="item flex-between ${w.status==="vista"?"strike":""}">
-      <div><strong>${esc(w.title)}</strong> <span class="pill">${esc(w.kind)}</span>
+      <div><strong>${esc(w.title)}</strong> <span class="pill">${esc(w.kind)}</span>${pillNuevo("ver",w,x=>x.added_by)}
       ${w.added_by?`<div class="meta">Agregada por ${esc(w.added_by)}</div>`:""}</div>
       <div class="row">
         ${w.status!=="vista"?`<button class="icon-btn" onclick="watchDone(${w.id})" title="Marcar vista">✓</button>`:`<span class="pill green">vista</span>`}
@@ -630,6 +678,7 @@ $("quiz-ask").onclick = async ()=>{
   const { error } = await sb.from("quiz_rounds").insert({ question: q, asked_by: ME || null });
   if(error){ toast("Error: "+error.message); return; }
   $("quiz-q").value = ""; toast("Pregunta enviada 💬"); loadQuiz();
+  avisarPareja("🎲 Juego nuevo", "Te hicieron una pregunta nueva");
 };
 async function loadQuiz(){
   renderQuizIdeas();
@@ -640,7 +689,7 @@ async function loadQuiz(){
     const iAmP1 = me && SETTINGS && me === SETTINGS.partner1_name;
     const myAns = iAmP1 ? r.partner1_answer : r.partner2_answer;
     const otherAns = iAmP1 ? r.partner2_answer : r.partner1_answer;
-    return `<div class="item"><strong>🎲 ${esc(r.question)}</strong>
+    return `<div class="item"><strong>🎲 ${esc(r.question)}</strong>${pillNuevo("juegos",r,x=>x.asked_by)}
       <div class="meta">Preguntó ${esc(r.asked_by||"alguien")} · ${fmtDateTime(r.created_at)}</div>
       ${myAns?`<div style="margin-top:6px;">Tú: ${esc(myAns)}</div>`:`<div class="row" style="margin-top:8px;"><input id="qa-${r.id}" placeholder="Tu respuesta…" class="grow" style="margin:0;"><button class="btn small" onclick="answerQuiz(${r.id})">OK</button></div>`}
       ${otherAns?`<div style="margin-top:4px;" class="muted">Tu persona: ${esc(otherAns)}</div>`:""}</div>`;
@@ -663,13 +712,14 @@ $("future-add").onclick = async ()=>{
   const { error } = await sb.from("future_items").insert({ title, detail: $("future-detail").value.trim()||null, added_by: ME||null });
   if(error){ toast("Error: "+error.message); return; }
   $("future-title").value = ""; $("future-detail").value = ""; toast("Agregado ✨"); loadFuture();
+  avisarPareja("✨ Nuestro futuro", "Agregaron un sueño nuevo a la lista");
 };
 async function loadFuture(){
   const { data } = await sb.from("future_items").select("*").order("created_at",{ascending:false}).limit(50);
   if(!data || !data.length){ $("future-list").innerHTML = '<p class="muted">Agreguen su primer sueño juntos.</p>'; return; }
   $("future-list").innerHTML = data.map(f=>`
     <div class="item flex-between ${f.done?"strike":""}">
-      <div><strong>✨ ${esc(f.title)}</strong>${f.detail?`<div class="meta">${esc(f.detail)}</div>`:""}</div>
+      <div><strong>✨ ${esc(f.title)}</strong>${pillNuevo("futuro",f,x=>x.added_by)}${f.detail?`<div class="meta">${esc(f.detail)}</div>`:""}</div>
       <div class="row">
         <button class="icon-btn" onclick="futureToggle(${f.id},${!f.done})" title="Marcar">${f.done?"↩":"✓"}</button>
         <button class="icon-btn" onclick="futureDel(${f.id})" title="Borrar">🗑</button>
@@ -677,6 +727,250 @@ async function loadFuture(){
 }
 window.futureToggle = async (id,done)=>{ await sb.from("future_items").update({done}).eq("id",id); loadFuture(); };
 window.futureDel = async id=>{ if(confirm("¿Borrar este sueño?")){ await sb.from("future_items").delete().eq("id",id); loadFuture(); } };
+
+/* ================= NOVEDADES (qué agregó el otro) ================= */
+/* Capa 1: al abrir la app — y en vivo si está abierta — cada uno ve qué
+   agregó el otro desde su última visita: insignias en las pestañas,
+   banner en Inicio y etiquetas "Nuevo" en los elementos.
+   El "visto hasta aquí" se guarda por sección y por usuario:
+   primero en la tabla novedades_vistas (si ya se creó en Supabase)
+   y siempre con respaldo local en este teléfono. */
+const SECCIONES = [
+  {seccion:"rituales", tabla:"checkins",     nombre:"Rituales", autor:r=>r.partner},
+  {seccion:"latidos",  tabla:"signals",      nombre:"Latidos",  autor:r=>r.from_partner},
+  {seccion:"cartas",   tabla:"letters",      nombre:"Cartas",   autor:r=>r.from_partner},
+  {seccion:"ver",      tabla:"watch_list",   nombre:"Ver",      autor:r=>r.added_by},
+  {seccion:"juegos",   tabla:"quiz_rounds",  nombre:"Juegos",   autor:r=>r.asked_by},
+  {seccion:"futuro",   tabla:"future_items", nombre:"Futuro",   autor:r=>r.added_by},
+];
+let VISTO = {};          // {seccion: iso} última vez que VI esa sección
+let NOVEDADES = {};      // {seccion: n} conteo actual de cosas del otro
+let VISTO_UID = null;    // id del usuario autenticado (tabla novedades_vistas)
+
+function maxTs(a,b){ if(!a) return b||null; if(!b) return a; return a>b?a:b; }
+function vistoLocalLeer(){ try{ return JSON.parse(localStorage.getItem("en_visto")||"{}"); }catch(e){ return {}; } }
+function vistoLocalGuardar(){ try{ localStorage.setItem("en_visto", JSON.stringify(VISTO)); }catch(e){} }
+async function vistoRemotoGuardar(){
+  if(!VISTO_UID) return;
+  try{
+    const filas = SECCIONES.map(s=>({user_id:VISTO_UID, seccion:s.seccion, visto_hasta:VISTO[s.seccion]}));
+    await sb.from("novedades_vistas").upsert(filas, {onConflict:"user_id,seccion"});
+  }catch(e){ /* tabla aún no creada en Supabase: queda el respaldo local */ }
+}
+async function cargarVisto(){
+  VISTO = vistoLocalLeer() || {};
+  try{
+    const { data } = await sb.auth.getUser();
+    if(data && data.user){
+      VISTO_UID = data.user.id;
+      const { data: filas, error } = await sb.from("novedades_vistas").select("seccion,visto_hasta").eq("user_id", VISTO_UID);
+      if(!error && filas) filas.forEach(f=>{ VISTO[f.seccion] = maxTs(VISTO[f.seccion], f.visto_hasta); });
+    }
+  }catch(e){ /* sin tabla o sin red: seguimos con lo local */ }
+  // Primera vez con esta función: no marcar TODO el historial como nuevo;
+  // el "visto" nace en este momento.
+  let nuevo = false;
+  SECCIONES.forEach(s=>{ if(!VISTO[s.seccion]){ VISTO[s.seccion] = new Date().toISOString(); nuevo = true; } });
+  vistoLocalGuardar();
+  if(nuevo) vistoRemotoGuardar();
+}
+function autorEsElOtro(autor){ return !!(autor && ME && autor !== ME); }
+function esNuevo(seccion, fila, autorFn){
+  if(!autorEsElOtro(autorFn(fila))) return false;
+  return !!(fila.created_at && fila.created_at > (VISTO[seccion] || "1970-01-01"));
+}
+function pillNuevo(seccion, fila, autorFn){
+  return esNuevo(seccion, fila, autorFn) ? ' <span class="pill nuevo">Nuevo</span>' : '';
+}
+async function contarNovedades(){
+  const res = {};
+  for(const s of SECCIONES){
+    res[s.seccion] = 0;
+    if(!ME) continue;
+    try{
+      const desde = VISTO[s.seccion] || "1970-01-01";
+      const cols = s.tabla==="checkins" ? "id,created_at,partner"
+        : s.tabla==="signals" ? "id,created_at,from_partner"
+        : s.tabla==="letters" ? "id,created_at,from_partner,to_partner"
+        : s.tabla==="quiz_rounds" ? "id,created_at,asked_by"
+        : "id,created_at,added_by";
+      const { data, error } = await sb.from(s.tabla).select(cols).gt("created_at", desde)
+        .order("created_at",{ascending:false}).limit(60);
+      if(!error && data) res[s.seccion] = data.filter(r=>autorEsElOtro(s.autor(r))).length;
+    }catch(e){ res[s.seccion] = 0; }
+  }
+  return res;
+}
+function actualizarInsigniasUI(){
+  SECCIONES.forEach(s=>{
+    const b = document.querySelector(`[data-badge="${s.seccion}"]`);
+    if(!b) return;
+    const n = NOVEDADES[s.seccion] || 0;
+    b.textContent = n > 9 ? "9+" : String(n);
+    b.classList.toggle("on", n > 0);
+  });
+}
+function renderBannerNovedades(){
+  const bn = $("news-banner"); if(!bn) return;
+  const con = SECCIONES.filter(s=>(NOVEDADES[s.seccion]||0) > 0);
+  if(!ME || !con.length){ bn.classList.add("hidden"); return; }
+  const otro = otherPartner(ME) || "Tu persona";
+  const detalle = con.map(s=>`${NOVEDADES[s.seccion]} en ${s.nombre}`).join(" · ");
+  $("news-list").innerHTML = `<p style="font-size:15px;">💌 <strong>${esc(otro)}</strong> agregó algo nuevo mientras no estabas: <strong>${esc(detalle)}</strong></p>`;
+  bn.classList.remove("hidden");
+}
+async function actualizarNovedades(){
+  NOVEDADES = await contarNovedades();
+  actualizarInsigniasUI();
+  renderBannerNovedades();
+}
+function marcarVisto(seccion){
+  VISTO[seccion] = new Date().toISOString();
+  NOVEDADES[seccion] = 0;
+  vistoLocalGuardar();
+  vistoRemotoGuardar();
+  actualizarInsigniasUI();
+  renderBannerNovedades();
+}
+function recargarSeccion(seccion){
+  ({rituales:loadCheckins, latidos:loadSignals, cartas:loadLetters,
+    ver:loadWatch, juegos:loadQuiz, futuro:loadFuture})[seccion]?.();
+}
+function subscribeNovedades(){
+  try{
+    const ch = sb.channel("novedades-live");
+    SECCIONES.filter(s=>!["checkins","signals","letters"].includes(s.tabla)).forEach(s=>{
+      ch.on("postgres_changes",{event:"INSERT",schema:"public",table:s.tabla}, payload=>{
+        if(autorEsElOtro(s.autor(payload.new))){
+          toast(`💌 ${s.autor(payload.new)} agregó algo en ${s.nombre}`);
+          recargarSeccion(s.seccion);
+          actualizarNovedades();
+        }
+      });
+    });
+    ch.on("postgres_changes",{event:"UPDATE",schema:"public",table:"quiz_rounds"}, ()=> loadQuiz());
+    ch.subscribe();
+  }catch(e){ /* si Realtime no trae estas tablas, las insignias al abrir bastan */ }
+}
+$("news-go").onclick = ()=>{
+  const first = SECCIONES.find(s=>(NOVEDADES[s.seccion]||0) > 0);
+  if(!first) return;
+  const b = document.querySelector(`nav.bottom button[data-tab="${first.seccion}"]`);
+  if(b) b.click();
+};
+$("news-seen").onclick = ()=>{ SECCIONES.forEach(s=>marcarVisto(s.seccion)); toast("Todo visto 💖"); };
+
+/* ================= PUSH (app cerrada) ================= */
+/* Capa 2: Web Push. La app guarda la suscripción de cada teléfono en
+   push_suscripciones; al agregar algo, la app del autor le pide a la
+   función "enviar-push" (Supabase Edge Function) que despierte el
+   teléfono del otro. La clave privada VAPID vive SOLO en esa función. */
+const VAPID_PUBLICA = "BNk0WkG7UkUDfhgi6PKxwdyABJELzfSWzlnALG0qUmHonGzJqt9gFWSFYl6BPi_KSls8OhfQP429fSH9KTcl3sk";
+const PUSH_FN_URL = SUPABASE_URL + "/functions/v1/enviar-push";
+
+function urlBase64ToUint8Array(b64){
+  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+  const base = (b64 + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base);
+  const arr = new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+function pushSoportado(){ return ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window); }
+function esIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent); }
+function esStandalone(){ return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches; }
+async function registrarSW(){
+  try{ if("serviceWorker" in navigator) await navigator.serviceWorker.register("sw.js"); }catch(e){}
+}
+async function initPushUI(){
+  const btn = $("push-btn"), off = $("push-off-btn"), st = $("push-status"), note = $("push-ios-note");
+  if(!btn) return;
+  if(esIOS() && !esStandalone()) note.classList.remove("hidden");
+  if(!pushSoportado()){
+    st.textContent = esIOS() && !esStandalone()
+      ? "En iPhone, primero agrégame a tu pantalla de inicio y ábreme desde ahí."
+      : "Este navegador no permite notificaciones push.";
+    btn.style.display = "none"; off.classList.add("hidden");
+    return;
+  }
+  try{
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    if(sub){
+      st.textContent = "✅ Activadas en este teléfono.";
+      btn.textContent = "Actualizar suscripción 🔔";
+      off.classList.remove("hidden");
+    } else {
+      st.textContent = "Apagadas en este teléfono.";
+      btn.textContent = "Activar notificaciones 🔔";
+      off.classList.add("hidden");
+    }
+  }catch(e){ st.textContent = "No se pudo revisar el estado en este teléfono."; }
+}
+async function guardarSuscripcion(sub){
+  const j = sub.toJSON();
+  try{ localStorage.setItem("en_push_sub", JSON.stringify({endpoint:j.endpoint})); }catch(e){}
+  try{
+    const { data } = await sb.auth.getUser();
+    if(!data || !data.user) return false;
+    const { error } = await sb.from("push_suscripciones").upsert({
+      user_id: data.user.id, endpoint: j.endpoint, suscripcion: j,
+      user_agent: navigator.userAgent.slice(0,200)
+    }, {onConflict:"endpoint"});
+    return !error;
+  }catch(e){ return false; }
+}
+$("push-btn").onclick = async ()=>{
+  const st = $("push-status");
+  try{
+    if(!pushSoportado()){ toast("Este navegador no lo permite aquí"); initPushUI(); return; }
+    if(esIOS() && !esStandalone()){ toast("Primero agrega la app a tu pantalla de inicio 🍎"); initPushUI(); return; }
+    const reg = await navigator.serviceWorker.register("sw.js");
+    const perm = await Notification.requestPermission();
+    if(perm !== "granted"){ st.textContent = "Permiso denegado. Actívalo en los ajustes del teléfono/navegador."; return; }
+    const sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLICA)});
+    const ok = await guardarSuscripcion(sub);
+    st.textContent = ok
+      ? "✅ Activadas en este teléfono."
+      : "⚠️ La suscripción quedó en este teléfono, pero el servidor aún no la recibió (falta aplicar un paso en Supabase).";
+    toast("Notificaciones listas 🔔");
+    initPushUI();
+  }catch(e){ st.textContent = "No se pudo activar: " + e.message; }
+};
+$("push-off-btn").onclick = async ()=>{
+  try{
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    if(sub){
+      try{ await sb.from("push_suscripciones").delete().eq("endpoint", sub.endpoint); }catch(e){}
+      await sub.unsubscribe();
+    }
+  }catch(e){}
+  try{ localStorage.removeItem("en_push_sub"); }catch(e){}
+  toast("Notificaciones desactivadas en este teléfono");
+  initPushUI();
+};
+async function avisarPareja(titulo, cuerpo){
+  // Silencioso siempre: si algo falta (tabla, función), la app sigue igual.
+  try{
+    const { data: u } = await sb.auth.getUser();
+    if(!u || !u.user) return;
+    const { data: subs } = await sb.from("push_suscripciones")
+      .select("suscripcion").neq("user_id", u.user.id).limit(5);
+    if(!subs || !subs.length) return;
+    const { data: ses } = await sb.auth.getSession();
+    const token = ses && ses.session && ses.session.access_token;
+    if(!token) return;
+    await Promise.all(subs.filter(s=>s.suscripcion).map(s=>
+      fetch(PUSH_FN_URL, {
+        method:"POST",
+        headers:{"Content-Type":"application/json", "Authorization":"Bearer " + token},
+        body: JSON.stringify({subscription:s.suscripcion, title:titulo, body:cuerpo,
+          url: location.origin + location.pathname})
+      }).catch(()=>null)
+    ));
+  }catch(e){}
+}
 
 /* ================= INIT ================= */
 window.addEventListener("DOMContentLoaded", initAuth);
